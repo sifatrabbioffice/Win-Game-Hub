@@ -17,7 +17,7 @@ jobs:
       - name: Setup Node.js (Bypass Node 24 Default)
         uses: actions/setup-node@v4
         with:
-          node-version: '20' # Temporarily pins to v20
+          node-version: '24' # Temporarily pins to v20
 
       - name: Install Node Dependencies
         run: npm install
