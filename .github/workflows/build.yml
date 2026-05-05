@@ -20,38 +20,71 @@ jobs:
           node-version: '20'
 
       - name: Install Node Dependencies
-        # If your package.json is also not in the root, you may need to remove this step entirely.
-        run: npm install
+        run: |
+          if [ -f "package.json" ]; then
+            npm install
+          else
+            echo "No package.json found. Skipping npm install."
+          fi
 
-      - name: Install CocoaPods
-        # Removed 'cd ios'. Running directly in the root where the Podfile is likely located.
-        run: pod install
+      - name: Install CocoaPods (Conditional)
+        run: |
+          if [ -f "Podfile" ]; then
+            echo "Podfile found. Installing CocoaPods dependencies..."
+            pod install
+          else
+            echo "No Podfile found in the root directory. Skipping CocoaPods installation."
+          fi
 
       - name: Build and Archive (Ad-Hoc / No Sign)
         run: |
-          # Ensure a clean build directory
           mkdir -p build
           
-          # Removed 'cd ios'. Pointing directly to the workspace in the root directory.
-          xcodebuild -workspace WinHub.xcworkspace \
-            -scheme WinHub \
-            -configuration Release \
-            -sdk iphoneos \
-            -archivePath $PWD/build/WinHub.xcarchive \
-            clean archive \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO
+          # Intelligently determine whether to build a workspace or a project
+          if [ -d "WinHub.xcworkspace" ]; then
+            echo "Workspace detected. Building WinHub.xcworkspace..."
+            xcodebuild -workspace WinHub.xcworkspace \
+              -scheme WinHub \
+              -configuration Release \
+              -sdk iphoneos \
+              -archivePath $PWD/build/WinHub.xcarchive \
+              clean archive \
+              CODE_SIGN_IDENTITY="" \
+              CODE_SIGNING_REQUIRED=NO \
+              CODE_SIGNING_ALLOWED=NO
+          elif [ -d "WinHub.xcodeproj" ]; then
+            echo "Project detected. Building WinHub.xcodeproj..."
+            xcodebuild -project WinHub.xcodeproj \
+              -scheme WinHub \
+              -configuration Release \
+              -sdk iphoneos \
+              -archivePath $PWD/build/WinHub.xcarchive \
+              clean archive \
+              CODE_SIGN_IDENTITY="" \
+              CODE_SIGNING_REQUIRED=NO \
+              CODE_SIGNING_ALLOWED=NO
+          else
+            echo "Error: Could not find WinHub.xcworkspace or WinHub.xcodeproj in the root directory."
+            echo "Here is the current directory structure for debugging:"
+            ls -la
+            exit 1
+          fi
 
       - name: Package IPA
         run: |
-          # Create the Payload folder required for an IPA structure
           mkdir -p build/Payload
           
-          # Copy the compiled .app file into the Payload folder
-          cp -r build/WinHub.xcarchive/Products/Applications/WinHub.app build/Payload/
+          # Find the compiled .app file dynamically to avoid pathing errors
+          APP_PATH=$(find build/WinHub.xcarchive/Products/Applications -name "*.app" -maxdepth 1)
           
-          # Compress the Payload folder into the final .ipa file
+          if [ -z "$APP_PATH" ]; then
+            echo "Error: Compiled .app file not found in the archive."
+            exit 1
+          fi
+          
+          echo "Found app at: $APP_PATH"
+          cp -r "$APP_PATH" build/Payload/
+          
           cd build
           zip -qr WinHub.ipa Payload
 
@@ -59,5 +92,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: WinHub-iOS-App
-          # Updated path to point to the root build directory
           path: build/WinHub.ipa
