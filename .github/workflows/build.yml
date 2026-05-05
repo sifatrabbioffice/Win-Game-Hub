@@ -1,0 +1,64 @@
+name: Build Win Game Hub IPA
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-ios:
+    name: Build Sideloadable IPA
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js (Bypass Node 24 Default)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20' # Temporarily pins to v20
+
+      - name: Install Node Dependencies
+        run: npm install
+
+      - name: Install CocoaPods
+        run: |
+          cd ios
+          pod install
+
+      - name: Build and Archive (Ad-Hoc / No Sign)
+        run: |
+          cd ios
+          # Ensure a clean build directory
+          mkdir -p build
+          
+          xcodebuild -workspace WinHub.xcworkspace \
+            -scheme WinHub \
+            -configuration Release \
+            -sdk iphoneos \
+            -archivePath $PWD/build/WinHub.xcarchive \
+            clean archive \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Package IPA (Fixes the Cp Error)
+        run: |
+          cd ios
+          # Create the Payload folder required for an IPA structure
+          mkdir -p build/Payload
+          
+          # Copy the compiled .app file into the Payload folder
+          # Using the explicit path defined in the previous step
+          cp -r build/WinHub.xcarchive/Products/Applications/WinHub.app build/Payload/
+          
+          # Compress the Payload folder into the final .ipa file
+          cd build
+          zip -qr WinHub.ipa Payload
+
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: WinHub-iOS-App
+          path: ios/build/WinHub.ipa
