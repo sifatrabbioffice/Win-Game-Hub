@@ -17,22 +17,22 @@ jobs:
       - name: Setup Node.js (Bypass Node 24 Default)
         uses: actions/setup-node@v4
         with:
-          node-version: '24' # Temporarily pins to v20
+          node-version: '20'
 
       - name: Install Node Dependencies
+        # If your package.json is also not in the root, you may need to remove this step entirely.
         run: npm install
 
       - name: Install CocoaPods
-        run: |
-          cd ios
-          pod install
+        # Removed 'cd ios'. Running directly in the root where the Podfile is likely located.
+        run: pod install
 
       - name: Build and Archive (Ad-Hoc / No Sign)
         run: |
-          cd ios
           # Ensure a clean build directory
           mkdir -p build
           
+          # Removed 'cd ios'. Pointing directly to the workspace in the root directory.
           xcodebuild -workspace WinHub.xcworkspace \
             -scheme WinHub \
             -configuration Release \
@@ -43,14 +43,12 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO
 
-      - name: Package IPA (Fixes the Cp Error)
+      - name: Package IPA
         run: |
-          cd ios
           # Create the Payload folder required for an IPA structure
           mkdir -p build/Payload
           
           # Copy the compiled .app file into the Payload folder
-          # Using the explicit path defined in the previous step
           cp -r build/WinHub.xcarchive/Products/Applications/WinHub.app build/Payload/
           
           # Compress the Payload folder into the final .ipa file
@@ -61,4 +59,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: WinHub-iOS-App
-          path: ios/build/WinHub.ipa
+          # Updated path to point to the root build directory
+          path: build/WinHub.ipa
